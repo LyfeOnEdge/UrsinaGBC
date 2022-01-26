@@ -4,7 +4,7 @@ For Twitch Integration create secrets.py using secrets_default.py as a template
 
 Xbox controller must be plugged in at app start to be enabled
 
-Roms must be put in ./roms
+I recommend putting roms in ./roms, but there is no autodetection so it's not required
 
 Currently games must be assigned manually in the MultiGameboy object in multiGBC.py, see below
 
