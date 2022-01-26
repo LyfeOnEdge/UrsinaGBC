@@ -6,7 +6,7 @@ Currently games must be assigned manually in the MultiGameboy object in multiGBC
 Comment out any gameboys you don't need, update the names / files / pallets etc to match the games you wish to load
 ```py
 self.games = [
-	GameBoy(NAME, GAME_FILE, GAME_PALLETE, scale=!DON'T CHANGE!, position=!DON'T CHANGE!, origin=!DON'T CHANGE!),
+	GameBoy(NAME, GAME_FILE, GAME_PALLETE, scale="!DON'T CHANGE!", position="!DON'T CHANGE!", origin="!DON'T CHANGE!"),
 	GameBoy('Pokemon Red', 'roms/Pokemon Red.gb',(0xf8e8f8,0x50a0f8,0x3050d0,0x101018), ...),
 ]
 ```
