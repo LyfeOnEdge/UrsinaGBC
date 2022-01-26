@@ -18,8 +18,14 @@ self.games = [
 ```
 
 Controls:
-wasd = ^<v>
+
+wasd = up left down right
+	
 e = a
+	
 r = b
+	
 t = select
+	
 q = start
+	
