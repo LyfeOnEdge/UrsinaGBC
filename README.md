@@ -19,13 +19,13 @@ self.games = [
 
 Controls:
 
-wasd = up left down right
+	wasd = up left down right
 	
-e = a
+	e = a
 	
-r = b
+	r = b
 	
-t = select
+	t = select
 	
-q = start
+	q = start
 	
