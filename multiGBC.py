@@ -71,7 +71,7 @@ class INPUT_ENUM:
 	def __init__(self):
 		pass
 
-EVENT_MAP = {
+COMMAND_MAP = {
 	"up"			: 	INPUT_ENUM.UP,
 	"u"				: 	INPUT_ENUM.UP,
 	"down"			: 	INPUT_ENUM.DOWN,
@@ -243,7 +243,7 @@ class Controller(ursina.Entity):
 
 	def handle_command(self, user, command):
 		command = command.strip().lower()
-		event = EVENT_MAP.get(command)
+		event = COMMAND_MAP.get(command)
 		if event:
 			self.gameboy.handle_command(f"{user} {INPUT_ENUM.string[event]}")
 			self.handle_event(event)
@@ -288,7 +288,7 @@ class Controller(ursina.Entity):
 					g.game.send_input(action)
 
 class GameBoy(ursina.Entity):
-	def __init__(self, name, file, color, color_palette, *args, **kwargs):
+	def __init__(self, name, file, color_palette, *args, **kwargs):
 		self.title = name
 		self.file = file
 		self.color_palette = color_palette
@@ -312,8 +312,6 @@ class GameBoy(ursina.Entity):
 			double_sided=True,
 			rotation_y=180,
 			**kwargs,)
-		# self.color=color
-		
 		self.label = ursina.Text(
 			parent=ursina.camera.ui,
 			position = kwargs.get('position'),
@@ -321,15 +319,14 @@ class GameBoy(ursina.Entity):
 			origin=(0,0),
 		)
 		self.label.position -= (-scale*0.975/2,-.1900,1)
-
 		self.filtering=None
 		self.position += (0.05*scale+0.00625,-0.05*scale,0)
 		self.screen = self.game.botsupport_manager().screen()
 		self.last_frame = None
 	def update(self):
 		self.game.tick()
-		f = self.screen.raw_screen_buffer()
-		if not f == self.last_frame:
+		f = self.screen.raw_screen_buffer() #Although this is a bit slow to call when the screen is updating every frame that is rarely the case
+		if not f == self.last_frame: #This prevents an unneeded redraw if the frame data hasn't changed
 			self.texture._texture.setRamImageAs(self.game.screen_image().convert("RGBA").tobytes(), "RGBA")
 			self.last_frame = f
 
@@ -346,17 +343,17 @@ class MultiGameboy(ursina.Ursina):
 		self.last_commands = []
 		
 		if os.path.isfile("secrets.py"):
-			self.twitch_integrator = TwitchIntegrator(self.handle_message, self.controller.handle_command, self.save, self.load)
+			self.twitch_integrator = TwitchIntegrator(self.handle_message, self.controller.handle_command)
 		
 		self.games = [
 			#(0xf8e8f8,0xf8e070,0xd0a000,0x181010) #Cyan
 			#(0xf8e8f8,0xe0a078,0xa87048,0x181010) #Light Blue
-			GameBoy('Pokemon Red', 'roms/Pokemon Red.gb', ursina.rgb(255,220,220),(0xf8e8f8,0x50a0f8,0x3050d0,0x101018), scale=tile_scale, position=ursina.Vec2(-0.5*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
-			GameBoy('Pokemon Green', 'roms/Pokemon Green.gb',ursina.rgb(220,255,220),(0xf8e8f8,0x80d0a0,0x58a048,0x101018), scale=tile_scale, position=ursina.Vec2(-0.25*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
-			GameBoy('Pokemon Blue', 'roms/Pokemon Blue.gb',ursina.rgb(220,220,255),(0xf8e8f8,0xd8a090,0xb87858,0x101018), scale=tile_scale, position=ursina.Vec2(0*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
-			GameBoy('Pokemon Yellow', 'roms/Pokemon Yellow.gb',ursina.rgb(255,255,220),(0xf8e8f8,0x70e0f8,0x00a0d0,0x101018), scale=tile_scale, position=ursina.Vec2(0.25*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
-			GameBoy('Pokemon Gold', 'roms/Pokemon Gold.gb',ursina.rgb(255,255,220),(0xf8f8f8,0x50b8a0,0x285858,0x181818), scale=tile_scale, position=ursina.Vec2(-0.5*ursina.camera.aspect_ratio,-0.25), origin=(-0.5,0)),
-			GameBoy('Pokemon Silver', 'roms/Pokemon Silver.gb',ursina.rgb(240,240,255),(0xf8e8f8,0xAAAAAA,0x777777,0x181010), scale=tile_scale, position=ursina.Vec2(0.25*ursina.camera.aspect_ratio,-0.25), origin=(-0.5,0)),
+			GameBoy('Pokemon Red', 'roms/Pokemon Red.gb',(0xf8e8f8,0x50a0f8,0x3050d0,0x101018), scale=tile_scale, position=ursina.Vec2(-0.5*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
+			GameBoy('Pokemon Green', 'roms/Pokemon Green.gb',(0xf8e8f8,0x80d0a0,0x58a048,0x101018), scale=tile_scale, position=ursina.Vec2(-0.25*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
+			GameBoy('Pokemon Blue', 'roms/Pokemon Blue.gb',(0xf8e8f8,0xd8a090,0xb87858,0x101018), scale=tile_scale, position=ursina.Vec2(0*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
+			GameBoy('Pokemon Yellow', 'roms/Pokemon Yellow.gb',(0xf8e8f8,0x70e0f8,0x00a0d0,0x101018), scale=tile_scale, position=ursina.Vec2(0.25*ursina.camera.aspect_ratio,0.25+0.025), origin=(-0.5,0)),
+			GameBoy('Pokemon Gold', 'roms/Pokemon Gold.gb',(0xf8f8f8,0x50b8a0,0x285858,0x181818), scale=tile_scale, position=ursina.Vec2(-0.5*ursina.camera.aspect_ratio,-0.25), origin=(-0.5,0)),
+			GameBoy('Pokemon Silver', 'roms/Pokemon Silver.gb',(0xf8e8f8,0xAAAAAA,0x777777,0x181010), scale=tile_scale, position=ursina.Vec2(0.25*ursina.camera.aspect_ratio,-0.25), origin=(-0.5,0)),
 		]
 		# for g in self.games: g.game.set_emulation_speed(0)
 		background = ursina.Entity(parent=ursina.camera.ui, add_to_scene_entities=False, eternal=True)
