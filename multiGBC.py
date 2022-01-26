@@ -257,11 +257,11 @@ class Controller(ursina.Entity):
 			elif self.button_release_map.get(action[0]):
 				self.button_release_map.get(action[0]).color=ursina.color.white
 		if not action[1] == None:
-			self.inputs[event] = time.time() + PRESS_DURATION #Reset timer for stop action, this way multiple of the same command just resets the walk action
+			self.inputs[event] = time.time() + PRESS_DURATION #Reset timer for stop action, this way multiple of the same command just delays the action end
 		else:
 			if self.overrides.get(event):
 				if self.inputs.get(self.overrides[event]):
-					self.inputs.pop(self.overrides[event]) #Prevents a losing button holds due to the stop actions triggering
+					self.inputs.pop(self.overrides[event]) #Prevents losing button holds due to the stop actions triggering
 
 	def handle_input(self, key):
 		if KEYMAP.get(key):

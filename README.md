@@ -17,7 +17,7 @@ self.games = [
 ]
 ```
 
-Controls:
+### Controls:
 
 	wasd = up left down right
 	
@@ -29,3 +29,13 @@ Controls:
 	
 	q = start
 	
+### Known issues:
+
+Games become laggggggy when using both irc and controller/keyboard input, needs investigation
+I think I'm using save states wrong... Errors on state load a lot. Disabled for now.
+
+### Todo:
+
+spam button option
+
+mini irc scripting language to make things less tedius

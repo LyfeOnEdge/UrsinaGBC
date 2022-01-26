@@ -1,3 +1,0 @@
-figure out what's going on with save states
-spam a
-mini scripting language
