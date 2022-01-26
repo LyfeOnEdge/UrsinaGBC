@@ -7,6 +7,6 @@ Comment out any gameboys you don't need, update the names / files / pallets etc 
 ```py
 self.games = [
 	GameBoy(NAME, GAME_FILE, GAME_PALLETE, scale=!DON'T CHANGE!, position=!DON'T CHANGE!, origin=!DON'T CHANGE!),
-	GameBoy('Pokemon Red', 'roms/Pokemon Red.gb',(0xf8e8f8,0x50a0f8,0x3050d0,0x101018), ...), origin=(-0.5,0)),
+	GameBoy('Pokemon Red', 'roms/Pokemon Red.gb',(0xf8e8f8,0x50a0f8,0x3050d0,0x101018), ...),
 ]
 ```
