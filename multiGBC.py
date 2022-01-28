@@ -1,158 +1,25 @@
-import os, time
+import os, time, shutil
 import ursina
 import pyboy
 from PIL import Image
 from panda3d.core import InputDevice, Texture as PandaTexture
+from modules.constants import *
+from modules.irc_parser import handle_input
+from collections import deque
 
 if os.path.isfile("secrets.py"):
-	from twitch_integrator import TwitchIntegrator
+	from modules.twitch_integrator import TwitchIntegrator
 
 os.makedirs("saves", exist_ok=True)
 ursina.Text.default_font = "assets/OpenSans-Bold.ttf"
 
-BACKUP_TIME = 10*60
+BACKUP_TIME = 5*60
 MESSAGE_TIMEOUT = 99999999 #Meh, looks too empty with slow chat
 MAX_MESSAGES = 15
 MAX_COMMANDS = 10
 PRESS_DURATION = 0.1
+DISABLE_IRC = False
 
-class INPUT_ENUM:
-	UP 					= 1
-	DOWN 				= 2
-	LEFT 				= 3
-	RIGHT 				= 4
-	A 					= 5
-	B 					= 6
-	SELECT 				= 7
-	START 				= 8
-	HOLD_UP 			= 10
-	HOLD_DOWN 			= 20
-	HOLD_LEFT 			= 30
-	HOLD_RIGHT 			= 40
-	HOLD_A 				= 50
-	HOLD_B 				= 60
-	HOLD_SELECT 		= 70
-	HOLD_START 			= 80
-	HOLD_RELEASE_UP 	= 100
-	HOLD_RELEASE_DOWN 	= 200
-	HOLD_RELEASE_LEFT 	= 300
-	HOLD_RELEASE_RIGHT 	= 400
-	HOLD_RELEASE_A 		= 500
-	HOLD_RELEASE_B 		= 600
-	HOLD_RELEASE_SELECT = 700
-	HOLD_RELEASE_START 	= 800
-
-	string = {
-		UP 					: "Pressed Up",
-		DOWN 				: "Pressed Down",
-		LEFT 				: "Pressed Left",
-		RIGHT 				: "Pressed Right",
-		A 					: "Pressed A",
-		B 					: "Pressed B",
-		SELECT 				: "Pressed Select",
-		START 				: "Pressed Start",
-		HOLD_UP 			: "Held Up",
-		HOLD_DOWN 			: "Held Down",
-		HOLD_LEFT 			: "Held Left",
-		HOLD_RIGHT 			: "Held Right",
-		HOLD_A 				: "Held A",
-		HOLD_B 				: "Held B",
-		HOLD_SELECT 		: "Held Select",
-		HOLD_START 			: "Held Start",
-		HOLD_RELEASE_UP 	: "Released Up",
-		HOLD_RELEASE_DOWN 	: "Released Down",
-		HOLD_RELEASE_LEFT 	: "Released Left",
-		HOLD_RELEASE_RIGHT 	: "Released Right",
-		HOLD_RELEASE_A 		: "Released A",
-		HOLD_RELEASE_B 		: "Released B",
-		HOLD_RELEASE_SELECT : "Released Select",
-		HOLD_RELEASE_START 	: "Released Start",
-	}
-	def __init__(self):
-		pass
-
-COMMAND_MAP = {
-	"up"			: 	INPUT_ENUM.UP,
-	"u"				: 	INPUT_ENUM.UP,
-	"down"			: 	INPUT_ENUM.DOWN,
-	"d"				: 	INPUT_ENUM.DOWN,
-	"left"			: 	INPUT_ENUM.LEFT,
-	"l"				: 	INPUT_ENUM.LEFT,
-	"right"			: 	INPUT_ENUM.RIGHT,
-	"r"				: 	INPUT_ENUM.RIGHT,
-	"a"				: 	INPUT_ENUM.A,
-	"b"				: 	INPUT_ENUM.B,
-	"select"		: 	INPUT_ENUM.SELECT,
-	"sel"			: 	INPUT_ENUM.SELECT,
-	"start"			: 	INPUT_ENUM.START,
-	"hold_up"		:  	INPUT_ENUM.HOLD_UP,
-	"hu"			:  	INPUT_ENUM.HOLD_UP,
-	"hold_down"		: 	INPUT_ENUM.HOLD_DOWN,
-	"hd"			: 	INPUT_ENUM.HOLD_DOWN,
-	"hold_left"		: 	INPUT_ENUM.HOLD_LEFT,
-	"hl"			: 	INPUT_ENUM.HOLD_LEFT,
-	"hold_right"	: 	INPUT_ENUM.HOLD_RIGHT,
-	"hr"			: 	INPUT_ENUM.HOLD_RIGHT,
-	"hold_a"		: 	INPUT_ENUM.HOLD_A,
-	"ha"			: 	INPUT_ENUM.HOLD_A,
-	"hold_b"		: 	INPUT_ENUM.HOLD_B,
-	"hb"			: 	INPUT_ENUM.HOLD_B,
-	"hold_select"	: 	INPUT_ENUM.HOLD_SELECT,
-	"hsel"			: 	INPUT_ENUM.HOLD_SELECT,
-	"hold_start"	:	INPUT_ENUM.HOLD_START,
-	"hs"			:	INPUT_ENUM.HOLD_START,
-	"release_up"	:  	INPUT_ENUM.HOLD_RELEASE_UP,
-	"ru"			:  	INPUT_ENUM.HOLD_RELEASE_UP,
-	"release_down"	: 	INPUT_ENUM.HOLD_RELEASE_DOWN,
-	"rd"			: 	INPUT_ENUM.HOLD_RELEASE_DOWN,
-	"release_left"	: 	INPUT_ENUM.HOLD_RELEASE_LEFT,
-	"rl"			: 	INPUT_ENUM.HOLD_RELEASE_LEFT,
-	"release_right"	: 	INPUT_ENUM.HOLD_RELEASE_RIGHT,
-	"rr"			: 	INPUT_ENUM.HOLD_RELEASE_RIGHT,
-	"release_a"		: 	INPUT_ENUM.HOLD_RELEASE_A,
-	"ra"			: 	INPUT_ENUM.HOLD_RELEASE_A,
-	"release_b"		: 	INPUT_ENUM.HOLD_RELEASE_B,
-	"rb"			: 	INPUT_ENUM.HOLD_RELEASE_B,
-	"release_select": 	INPUT_ENUM.HOLD_RELEASE_SELECT,
-	"rsel"			: 	INPUT_ENUM.HOLD_RELEASE_SELECT,
-	"release_start"	:	INPUT_ENUM.HOLD_RELEASE_START,
-	"rs"			:	INPUT_ENUM.HOLD_RELEASE_START,
-}
-
-KEYMAP = {
-	"gamepad dpad up": pyboy.WindowEvent.PRESS_ARROW_UP,
-	"gamepad dpad up up": pyboy.WindowEvent.RELEASE_ARROW_UP,
-	"w" : pyboy.WindowEvent.PRESS_ARROW_UP,
-	"w up" : pyboy.WindowEvent.RELEASE_ARROW_UP,
-	"gamepad dpad down": pyboy.WindowEvent.PRESS_ARROW_DOWN,
-	"gamepad dpad down up": pyboy.WindowEvent.RELEASE_ARROW_DOWN,
-	"s" : pyboy.WindowEvent.PRESS_ARROW_DOWN,
-	"s up" : pyboy.WindowEvent.RELEASE_ARROW_DOWN,
-	"gamepad dpad left": pyboy.WindowEvent.PRESS_ARROW_LEFT,
-	"gamepad dpad left up": pyboy.WindowEvent.RELEASE_ARROW_LEFT,
-	"a" : pyboy.WindowEvent.PRESS_ARROW_LEFT,
-	"a up" : pyboy.WindowEvent.RELEASE_ARROW_LEFT,
-	"gamepad dpad right": pyboy.WindowEvent.PRESS_ARROW_RIGHT,
-	"gamepad dpad right up": pyboy.WindowEvent.RELEASE_ARROW_RIGHT,
-	"d" : pyboy.WindowEvent.PRESS_ARROW_RIGHT,
-	"d up" : pyboy.WindowEvent.RELEASE_ARROW_RIGHT,
-	"gamepad a": pyboy.WindowEvent.PRESS_BUTTON_A,
-	"gamepad a up": pyboy.WindowEvent.RELEASE_BUTTON_A,
-	"e": pyboy.WindowEvent.PRESS_BUTTON_A,
-	"e up": pyboy.WindowEvent.RELEASE_BUTTON_A,
-	"gamepad b": pyboy.WindowEvent.PRESS_BUTTON_B,
-	"gamepad b up": pyboy.WindowEvent.RELEASE_BUTTON_B,
-	"r": pyboy.WindowEvent.PRESS_BUTTON_B,
-	"r up": pyboy.WindowEvent.RELEASE_BUTTON_B,
-	"gamepad back": pyboy.WindowEvent.PRESS_BUTTON_SELECT,
-	"gamepad back up": pyboy.WindowEvent.RELEASE_BUTTON_SELECT,
-	"t": pyboy.WindowEvent.PRESS_BUTTON_SELECT,
-	"t up": pyboy.WindowEvent.RELEASE_BUTTON_SELECT,
-	"gamepad start": pyboy.WindowEvent.PRESS_BUTTON_START,
-	"gamepad start up": pyboy.WindowEvent.RELEASE_BUTTON_START,
-	"q": pyboy.WindowEvent.PRESS_BUTTON_START,
-	"q up": pyboy.WindowEvent.RELEASE_BUTTON_START,
-}
 
 class ScreenMessage:
 	def __init__(self, message, received_time):
@@ -160,10 +27,9 @@ class ScreenMessage:
 
 class Controller(ursina.Entity):
 	def __init__(self, gameboy, *args, **kwargs):
-		scale = kwargs.pop('scale')
-		ursina.Entity.__init__(self, *args, parent=ursina.camera.ui, scale=(scale*0.975,0.45), model=ursina.Quad(radius=0.1), color=ursina.color.black66, **kwargs)
-		self.position += (0.0125,-0.0125)
 		self.gameboy = gameboy
+		scale = kwargs.pop('scale')
+		ursina.Entity.__init__(self, *args, parent=ursina.camera.ui, scale=(scale*0.975,0.45), model=ursina.Quad(radius=0.1), position=kwargs.pop('position')+ ursina.Vec2(0.0125,-0.0125), color=ursina.color.black66, **kwargs)	
 		d_pad_center = self.position + (0.275*scale, -0.34*scale)
 		button_pad_center = self.position + (0.725*scale,-0.34*scale)
 		start_select_center = self.position + (0.5*scale, -0.24*scale)
@@ -171,17 +37,12 @@ class Controller(ursina.Entity):
 		self.down_button=ursina.Entity(parent=ursina.camera.ui, position=d_pad_center+(0,-0.07*scale,0), texture="assets/d_pad.png",rotation_z=270,model="quad",scale=0.05,z=-5)
 		self.left_button=ursina.Entity(parent=ursina.camera.ui, position=d_pad_center+(-0.07*scale,0,0), texture="assets/d_pad.png",rotation_z=0,model="quad",scale=0.05,z=-5)
 		self.right_button=ursina.Entity(parent=ursina.camera.ui, position=d_pad_center+(0.07*scale,0,0), texture="assets/d_pad.png",rotation_z=180,model="quad",scale=0.05,z=-5)
-		
-		self.inputs = {}
-
 		self.start_button=ursina.Entity(parent=ursina.camera.ui, position=button_pad_center+(0,0.085*scale,0), texture="assets/start_button.png",model="quad",scale=0.05,z=-5)
 		self.select_button=ursina.Entity(parent=ursina.camera.ui, position=button_pad_center+(-0.085*scale,0,0), texture="assets/select_button.png",model="quad",scale=0.05,z=-5)
 		self.a_button=ursina.Entity(parent=ursina.camera.ui, position=button_pad_center+(0,-0.085*scale,0), texture="assets/a_button.png",model="quad",scale=0.05,z=-5)
 		self.b_button=ursina.Entity(parent=ursina.camera.ui, position=button_pad_center+(0.085*scale,0,0), texture="assets/b_button.png",model="quad",scale=0.05,z=-5)
-
 		self.screen=ursina.Entity(parent=ursina.camera.ui, position=self.position+(0.5*self.scale.x,0.158*self.scale.y),model=ursina.Quad(aspect=(0.9*self.scale.x)/(0.59*self.scale.y)),scale=(0.9*self.scale.x,0.59*self.scale.y),color=ursina.color.black,z=-6)
 		self.label=ursina.Entity(parent=ursina.camera.ui, position=start_select_center, texture="assets/lyfe_purple_square.png",model="quad",scale=0.075,z = -5,)
-
 		self.button_press_map = {
 			pyboy.WindowEvent.PRESS_ARROW_UP		: self.up_button,
 			pyboy.WindowEvent.PRESS_ARROW_DOWN		: self.down_button,
@@ -202,90 +63,23 @@ class Controller(ursina.Entity):
 			pyboy.WindowEvent.RELEASE_BUTTON_SELECT	: self.select_button,
 			pyboy.WindowEvent.RELEASE_BUTTON_START	: self.start_button,
 		}
+		self.command_que = deque()
 
-		self.actions = {
-			INPUT_ENUM.UP					:	(pyboy.WindowEvent.PRESS_ARROW_UP,pyboy.WindowEvent.RELEASE_ARROW_UP),
-			INPUT_ENUM.DOWN					:	(pyboy.WindowEvent.PRESS_ARROW_DOWN,pyboy.WindowEvent.RELEASE_ARROW_DOWN),
-			INPUT_ENUM.LEFT					:	(pyboy.WindowEvent.PRESS_ARROW_LEFT,pyboy.WindowEvent.RELEASE_ARROW_LEFT),
-			INPUT_ENUM.RIGHT				:	(pyboy.WindowEvent.PRESS_ARROW_RIGHT,pyboy.WindowEvent.RELEASE_ARROW_RIGHT),
-			INPUT_ENUM.A					:	(pyboy.WindowEvent.PRESS_BUTTON_A,pyboy.WindowEvent.RELEASE_BUTTON_A),
-			INPUT_ENUM.B					:	(pyboy.WindowEvent.PRESS_BUTTON_B,pyboy.WindowEvent.RELEASE_BUTTON_B),
-			INPUT_ENUM.SELECT				:	(pyboy.WindowEvent.PRESS_BUTTON_SELECT,pyboy.WindowEvent.RELEASE_BUTTON_SELECT),
-			INPUT_ENUM.START				:	(pyboy.WindowEvent.PRESS_BUTTON_START,pyboy.WindowEvent.RELEASE_BUTTON_START),
-			INPUT_ENUM.HOLD_UP				:	(pyboy.WindowEvent.PRESS_ARROW_UP,None),
-			INPUT_ENUM.HOLD_DOWN			:	(pyboy.WindowEvent.PRESS_ARROW_DOWN,None),
-			INPUT_ENUM.HOLD_LEFT			:	(pyboy.WindowEvent.PRESS_ARROW_LEFT,None),
-			INPUT_ENUM.HOLD_RIGHT			:	(pyboy.WindowEvent.PRESS_ARROW_RIGHT,None),
-			INPUT_ENUM.HOLD_A				:	(pyboy.WindowEvent.PRESS_BUTTON_A,None),
-			INPUT_ENUM.HOLD_B				:	(pyboy.WindowEvent.PRESS_BUTTON_B,None),
-			INPUT_ENUM.HOLD_SELECT 			:	(pyboy.WindowEvent.PRESS_BUTTON_SELECT, None),
-			INPUT_ENUM.HOLD_START			:	(pyboy.WindowEvent.PRESS_BUTTON_START, None),
-			INPUT_ENUM.HOLD_RELEASE_UP		:	(pyboy.WindowEvent.RELEASE_ARROW_UP,None),
-			INPUT_ENUM.HOLD_RELEASE_DOWN	:	(pyboy.WindowEvent.RELEASE_ARROW_DOWN,None),
-			INPUT_ENUM.HOLD_RELEASE_LEFT	:	(pyboy.WindowEvent.RELEASE_ARROW_LEFT,None),
-			INPUT_ENUM.HOLD_RELEASE_RIGHT	:	(pyboy.WindowEvent.RELEASE_ARROW_RIGHT,None),
-			INPUT_ENUM.HOLD_RELEASE_A		:	(pyboy.WindowEvent.RELEASE_BUTTON_A,None),
-			INPUT_ENUM.HOLD_RELEASE_B		:	(pyboy.WindowEvent.RELEASE_BUTTON_B,None),
-			INPUT_ENUM.HOLD_RELEASE_SELECT	:	(pyboy.WindowEvent.RELEASE_BUTTON_SELECT,None),
-			INPUT_ENUM.HOLD_RELEASE_START	:	(pyboy.WindowEvent.RELEASE_BUTTON_START,None),
-		}
-
-		self.overrides = {
-			INPUT_ENUM.HOLD_UP		:	INPUT_ENUM.UP,
-			INPUT_ENUM.HOLD_DOWN	:	INPUT_ENUM.DOWN,
-			INPUT_ENUM.HOLD_LEFT	:	INPUT_ENUM.LEFT,
-			INPUT_ENUM.HOLD_RIGHT	:	INPUT_ENUM.RIGHT,
-			INPUT_ENUM.HOLD_A		:	INPUT_ENUM.A,
-			INPUT_ENUM.HOLD_B		:	INPUT_ENUM.B,
-			INPUT_ENUM.HOLD_SELECT	:	INPUT_ENUM.SELECT,
-			INPUT_ENUM.HOLD_START	:	INPUT_ENUM.START,
-		}
-
-	def handle_command(self, user, command):
-		command = command.strip().lower()
-		event = COMMAND_MAP.get(command)
-		if event:
-			self.gameboy.handle_command(f"{user} {INPUT_ENUM.string[event]}")
-			self.handle_event(event)
-
-	def handle_event(self, event):
-		action = self.actions.get(event)
-		for g in self.gameboy.games:
-			g.game.send_input(action[0])
-			if self.button_press_map.get(action[0]):
-				self.button_press_map.get(action[0]).color=ursina.rgb(145,70,255)
-			elif self.button_release_map.get(action[0]):
-				self.button_release_map.get(action[0]).color=ursina.color.white
-		if not action[1] == None:
-			self.inputs[event] = time.time() + PRESS_DURATION #Reset timer for stop action, this way multiple of the same command just delays the action end
-		else:
-			if self.overrides.get(event):
-				if self.inputs.get(self.overrides[event]):
-					self.inputs.pop(self.overrides[event]) #Prevents losing button holds due to the stop actions triggering
-
-	def handle_input(self, key):
-		if KEYMAP.get(key):
-			action = KEYMAP[key]
-			print(f"R {key} - S {action}")
-			for g in self.gameboy.games:
-				g.game.send_input(action)
-			if self.button_press_map.get(action):
-				self.button_press_map.get(action).color=ursina.rgb(145,70,255)
-			elif self.button_release_map.get(action):
-				self.button_release_map.get(action).color=ursina.color.white
-		else:
-			print(f"Unmapped key {key}") 
+	def add_commands(self, user, timeline): 
+		self.command_que.extend(timeline)
 
 	def _update(self):
-		for event in self.inputs.keys():
-			if self.inputs[event] < time.time():
+		if self.command_que:
+			action = self.command_que.popleft()
+			if action:
 				for g in self.gameboy.games:
-					action = self.actions[event][1]
 					if self.button_press_map.get(action):
 						self.button_press_map.get(action).color=ursina.rgb(145,70,255)
 					elif self.button_release_map.get(action):
 						self.button_release_map.get(action).color=ursina.color.white
 					g.game.send_input(action)
+
+				self.gameboy.handle_command(f"{INPUT_ENUM.action_string[action]}")
 
 class GameBoy(ursina.Entity):
 	def __init__(self, name, file, color_palette, *args, **kwargs):
@@ -293,6 +87,7 @@ class GameBoy(ursina.Entity):
 		self.file = file
 		self.color_palette = color_palette
 		self.game = pyboy.PyBoy(file,window_type="headless",color_palette=color_palette)
+		self.screen = self.game.botsupport_manager().screen()
 		scale = kwargs.pop('scale')
 		self.backer = ursina.Entity(
 			parent=ursina.camera.ui,
@@ -321,29 +116,37 @@ class GameBoy(ursina.Entity):
 		self.label.position -= (-scale*0.975/2,-.1900,1)
 		self.filtering=None
 		self.position += (0.05*scale+0.00625,-0.05*scale,0)
-		self.screen = self.game.botsupport_manager().screen()
 		self.last_frame = None
+		self.remaking = False
 	def update(self):
+		if self.remaking: return
 		self.game.tick()
 		f = self.screen.raw_screen_buffer() #Although this is a bit slow to call when the screen is updating every frame that is rarely the case
 		if not f == self.last_frame: #This prevents an unneeded redraw if the frame data hasn't changed
 			self.texture._texture.setRamImageAs(self.game.screen_image().convert("RGBA").tobytes(), "RGBA")
 			self.last_frame = f
-
+	def remake(self):
+		self.remaking = True
+		del self.game
+		del self.screen
+		self.game = pyboy.PyBoy(self.file,window_type="headless",color_palette=self.color_palette)
+		self.screen = self.game.botsupport_manager().screen()
+		self.remaking = False
 class MultiGameboy(ursina.Ursina):
 	def __init__(self):
 		ursina.Ursina.__init__(self)
 		tile_scale = (ursina.camera.aspect_ratio-0.05)/4
-		# self.background = ursina.Entity(parent=ursina.camera.ui, scale=1, model='quad', texture="pikachu_thicc.jpg", z=-5,color=ursina.color.white33)
 		self.controller = Controller(self, scale=tile_scale,position=ursina.Vec2(-0.25*ursina.camera.aspect_ratio,-0.25), origin=(-0.5,0))
 		self.next_backup = time.time() + BACKUP_TIME
 		self.messages = []
 		self.last_messages = []
 		self.commands = []
 		self.last_commands = []
+		self.loading = False
+		self.backup_timer = time.time() + BACKUP_TIME
 		
-		if os.path.isfile("secrets.py"):
-			self.twitch_integrator = TwitchIntegrator(self.handle_message, self.controller.handle_command)
+		if os.path.isfile("secrets.py") and not DISABLE_IRC:
+			self.twitch_integrator = TwitchIntegrator(self.handle_message, self.controller.add_commands, self.save, self.load, self.backup)
 		
 		self.games = [
 			#(0xf8e8f8,0xf8e070,0xd0a000,0x181010) #Cyan
@@ -355,6 +158,9 @@ class MultiGameboy(ursina.Ursina):
 			GameBoy('Pokemon Gold', 'roms/Pokemon Gold.gb',(0xf8f8f8,0x50b8a0,0x285858,0x181818), scale=tile_scale, position=ursina.Vec2(-0.5*ursina.camera.aspect_ratio,-0.25), origin=(-0.5,0)),
 			GameBoy('Pokemon Silver', 'roms/Pokemon Silver.gb',(0xf8e8f8,0xAAAAAA,0x777777,0x181010), scale=tile_scale, position=ursina.Vec2(0.25*ursina.camera.aspect_ratio,-0.25), origin=(-0.5,0)),
 		]
+		for g in self.games:
+			g.game.set_emulation_speed(0)
+		self.load()
 		# for g in self.games: g.game.set_emulation_speed(0)
 		background = ursina.Entity(parent=ursina.camera.ui, add_to_scene_entities=False, eternal=True)
 		for g in self.games:
@@ -392,15 +198,16 @@ class MultiGameboy(ursina.Ursina):
 		self.command_bubbles=[]
 		# for i in range(10): self.handle_message(str(i))
 	def update(self):
-		# if time.time() > self.next_backup:
-		# 	self.save(backup=True)
+		if self.backup_timer < time.time():
+			self.backup()
+			self.backup_timer = time.time()+BACKUP_TIME
+		if self.loading: return
 		self.controller._update()
 		for g in self.games: 
 			g.update()
 		for m in self.messages.copy():
 			if time.time() > m.received_time + MESSAGE_TIMEOUT:
 				self.messages.remove(m)
-
 		if not self.messages == self.last_messages:
 			for b in self.chat_bubbles: ursina.destroy(b)
 			self.chat_bubbles = []
@@ -432,11 +239,9 @@ class MultiGameboy(ursina.Ursina):
 				self.chat_bubbles.append(bubble)
 			self.last_messages = self.messages.copy()
 		previous_bubble = None
-
 		for c in self.commands.copy():
 			if time.time() > c.received_time + MESSAGE_TIMEOUT:
 				self.commands.remove(c)
-
 		if not self.commands == self.last_commands:
 			for b in self.command_bubbles: ursina.destroy(b)
 			self.command_bubbles = []
@@ -469,6 +274,7 @@ class MultiGameboy(ursina.Ursina):
 			self.last_commands = self.commands.copy()
 
 	def input(self, key):
+		return
 		self.controller.handle_input(key)
 
 	def handle_message(self, message):
@@ -480,22 +286,25 @@ class MultiGameboy(ursina.Ursina):
 		self.commands.append(ScreenMessage(command, time.time()))
 
 	def save(self,backup=False):
-		return #BROKEN
 		for g in self.games:
-			with open(f"saves/{g.title}.state_backup" if backup else f"saves/{g.title}.state", 'wb+') as f:
-				g.game.save_state(f)
+			g.game.send_input(pyboy.WindowEvent.STATE_SAVE)
+
+	def backup(self):
+		for g in self.games:
+			g.game.send_input(pyboy.WindowEvent.STATE_SAVE)
+			shutil.copyfile(g.file+".state", f"saves/{g.title}__{str(time.time())}__.state")
 
 	def load(self):
-		return #BROKEN
+		print("Loading")
+		self.loading = True
 		for g in self.games:
-			with open(f"saves/{g.title}.state", 'rb') as f:
-				g.game.stop(save=False)
-				g.game = pyboy.PyBoy(g.file,window_type="headless",color_palette=g.color_palette)
-				g.game.load_state(f)
+			g.game.send_input(pyboy.WindowEvent.STATE_LOAD)
+
+		self.loading = False
 
 game = MultiGameboy()
 update = game.update
-ursina.window.vsync=60
+# ursina.window.vsync=60
 ursina.window.exit_button.enabled=False
 ursina.window.fps_counter.scale *= 0.5
 ursina.window.fps_counter.position += ursina.Vec3(0,0.02,0)

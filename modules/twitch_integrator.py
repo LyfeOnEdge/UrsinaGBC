@@ -1,24 +1,25 @@
 import sys, time, socket, secrets
 from direct.stdpy import thread
-
+from .irc_parser import handle_input
+from .constants import *
 global command_cooldown
 command_cooldown = []
 message = ' '
 user = ' '
 
-HELP_MESSAGES = [
-	"All commands must be prefixed by '!' || Alternate upper/lower to bypass rate limit || Abbrv commands are in parenthesis ||",
-	"(u)p | (d)own | (l)eft | (r)ight | (a) | (b) | (sel)ect | (s)tart | (hu) hold_up | (hd) hold_down | (hl) hold_left | (hr) hold_right | (ha) hold_a | (hb) hold_b | (hs) hold_start | (hsel) hold_select | (ru) release_up | (rd) release_down | (rl) release_left | (rr) release_right | (ra) release_a | (rb) release_b | (rs) release_start | (rsel) release_select",
-]
+
+HELP_MESSAGE =	f"Start your command and separate each input with '{COMMAND_PREFIX}' eg: {COMMAND_PREFIX}u{COMMAND_PREFIX}u{COMMAND_PREFIX}a{COMMAND_PREFIX}r{COMMAND_PREFIX}a{COMMAND_PREFIX}a{COMMAND_PREFIX}b || (u)p | (d)own | (l)eft | (r)ight | (a) | (b) | (s)elect | (p)ause"
+
 
 class TwitchIntegrator():
-	def __init__(self, message_handler, command_handler):
+	def __init__(self, message_handler, command_handler, save_func, load_func, backup_func):
 		self.server = "irc.twitch.tv"
 		self.port = 6667
 		self.password = secrets.PASS
 		self.bot = secrets.BOT
 		self.channel = secrets.CHANNEL
-		OWNER = secrets.OWNER
+		self.save_func, self.load_func, self.backup_func = save_func, load_func, backup_func
+		self.owner = OWNER = secrets.OWNER
 		self.message_handler = message_handler
 		self.command_handler = command_handler
 		self.irc = socket.socket()
@@ -72,6 +73,7 @@ class TwitchIntegrator():
 
 	def sendMessage(self, message):
 		messageTemp = "PRIVMSG #" + self.channel + " :" + message
+		print(messageTemp)
 		self.irc.send((messageTemp + "\n").encode())
 
 	def console(self, line):
@@ -99,13 +101,24 @@ class TwitchIntegrator():
 					message = self.getMessage(line).strip()
 					if user == "" or user == " ":
 						continue
-					
-					if message.startswith("!"):
-						if message == "!help": #Not a handled command
-							for m in HELP_MESSAGES:
-								self.sendMessage(m)
-							continue
-						self.command_handler(user.title(), message.strip("!"))
-					else:
+					if message == f"{COMMAND_PREFIX}help": #Not a normally handled command
+						self.sendMessage(HELP_MESSAGE)
+						continue
+					if message == f"{COMMAND_PREFIX}save" and user==self.owner: #Not a normally handled command
+						self.save_func()
+						continue
+					if message == f"{COMMAND_PREFIX}load" and user==self.owner: #Not a normally handled command
+						self.load_func()
+						continue
+					if message == f"{COMMAND_PREFIX}backup" and user==self.owner: #Not a normally handled command
+						self.backup_func()
+						continue
+					handled = handle_input(message)
+					if handled == -1:
+						self.sendMessage(f"@{user} - unrecognized command {message}")
+						continue
+					flag, data = handled
+					if flag is COMMAND_FLAG:
+						self.command_handler(user.title(), data)
+					elif flag is MESSAGE_FLAG:
 						self.message_handler(user.title() + "|" + message)
-						thread.start_new_thread(function=self.handle_input, args='')
